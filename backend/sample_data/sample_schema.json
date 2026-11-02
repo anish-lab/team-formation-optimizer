@@ -1,0 +1,38 @@
+[
+  {
+    "name": "skill",
+    "type": "numeric_continuous",
+    "importance": 3,
+    "role": "both",
+    "min": 0,
+    "max": 100
+  },
+  {
+    "name": "experience_years",
+    "type": "numeric_integer",
+    "importance": 1,
+    "role": "value"
+  },
+  {
+    "name": "department",
+    "type": "categorical",
+    "importance": 1,
+    "role": "compat",
+    "compat_method": "complementarity"
+  },
+  {
+    "name": "knows_python",
+    "type": "binary",
+    "importance": 1,
+    "role": "value"
+  },
+  {
+    "name": "communication",
+    "type": "numeric_integer",
+    "importance": 2,
+    "role": "compat",
+    "compat_method": "similarity",
+    "min": 1,
+    "max": 10
+  }
+]

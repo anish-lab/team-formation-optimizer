@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer components {
+  .card { @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm; }
+  .btn { @apply inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-400; }
+  .btn-ghost { @apply inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400; }
+  .inp { @apply w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400; }
+  .lbl { @apply mb-1 block text-xs font-medium text-slate-600; }
+}
+
+body { background-image: linear-gradient(180deg, #eef2ff 0%, #f8fafc 280px); background-attachment: fixed; }
+
+/* ---------- animation ---------- */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes floaty { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-24px) scale(1.12); } }
+.step-in { animation: fadeUp .35s ease both; }
+.blob { animation: floaty 9s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .step-in, .blob { animation: none; } * { transition: none !important; } }
+
+/* ---------- dark mode overrides for shared components ---------- */
+.dark body { background: #0b1020; background-image: none; color: #e2e8f0; }
+.dark .card { background: #111827; border-color: #1f2937; }
+.dark .inp { background: #0f172a; color: #e2e8f0; border-color: #475569; }
+.dark .lbl { color: #94a3b8; }
+.dark .btn-ghost { background: #1e293b; color: #e2e8f0; border-color: #475569; }
+.dark .btn-ghost:hover { background: #334155; }
+.dark .bg-white { background: #111827; }
+.dark .bg-slate-50 { background: #0f172a; }
+.dark .bg-slate-100 { background: #1e293b; }
+.dark .bg-slate-200 { background: #334155; }
+.dark .hover\:bg-slate-100:hover, .dark .hover\:bg-slate-50:hover, .dark .hover\:bg-slate-200:hover { background: #1e293b; }
+.dark .text-slate-800, .dark .text-slate-700 { color: #e2e8f0; }
+.dark .text-slate-600, .dark .text-slate-500 { color: #94a3b8; }
+.dark .border:not([class*="border-"]), .dark .border-t, .dark .border-b, .dark .border-slate-200, .dark .border-slate-300 { border-color: #334155; }
+.dark .bg-sky-50 { background: #0c2a3d; } .dark .text-sky-900 { color: #bae6fd; } .dark .border-sky-200 { border-color: #155e75; }
+.dark .bg-amber-50, .dark .bg-amber-50\/50 { background: #33240a; } .dark .text-amber-900 { color: #fde68a; } .dark .border-amber-200, .dark .border-amber-300 { border-color: #92400e; } .dark .text-amber-700 { color: #fcd34d; }
+.dark .bg-emerald-50 { background: #052e22; } .dark .text-emerald-900 { color: #a7f3d0; } .dark .border-emerald-200 { border-color: #065f46; }
+.dark .bg-red-50 { background: #3b0d0d; } .dark .text-red-900 { color: #fecaca; } .dark .border-red-200 { border-color: #7f1d1d; } .dark .text-red-700, .dark .text-red-600 { color: #fca5a5; } .dark .bg-red-100 { background: #4c1010; }
+.dark .bg-indigo-50, .dark .bg-indigo-50\/50, .dark .bg-indigo-100 { background: #1e1b4b; }
+.dark .text-indigo-700, .dark .text-indigo-800, .dark .text-indigo-900 { color: #a5b4fc; }
+.dark .recharts-text, .dark .recharts-legend-item-text { fill: #cbd5e1; color: #cbd5e1; }
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip { background: #111827 !important; border-color: #334155 !important; }

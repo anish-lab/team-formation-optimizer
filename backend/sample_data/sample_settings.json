@@ -1,0 +1,18 @@
+{
+  "objective": {
+    "alpha": 1,
+    "beta": 1,
+    "edge_mode": "hard",
+    "threshold": 0.5
+  },
+  "team": {
+    "policy": "strict_equal",
+    "preferred_size": 3,
+    "num_teams": 4,
+    "strict_team_count": true
+  },
+  "limits": {
+    "time_limit": 30,
+    "use_coloring": true
+  }
+}
