@@ -12,7 +12,7 @@ export interface Settings {
     policy: string; preferred_size: number; num_teams?: number | null; min_size?: number | null; max_size?: number | null
     strict_team_count: boolean; strict_team_size: boolean; full_coverage: boolean; equal_sizes: boolean; priority: string
   }
-  limits: { time_limit: number; node_limit?: number | null; use_coloring: boolean; allow_heuristic: boolean; max_cliques: number }
+  limits: { time_limit: number; node_limit?: number | null; max_cliques: number }
 }
 export interface ApiErr { code?: string; message?: string; details?: any }
 export type Page = 'home' | 'wizard' | 'results' | 'graph' | 'evaluation' | 'export'
@@ -20,5 +20,5 @@ export const defaultSettings: Settings = {
   objective: { alpha: 1, beta: 1, edge_mode: 'hard', threshold: 0.5 },
   team: { policy: 'variable_sizes', preferred_size: 4, num_teams: null, min_size: 4, max_size: 5, strict_team_count: true,
     strict_team_size: false, full_coverage: false, equal_sizes: false, priority: 'coverage_first' },
-  limits: { time_limit: 30, node_limit: null, use_coloring: true, allow_heuristic: false, max_cliques: 250000 },
+  limits: { time_limit: 30, node_limit: null, max_cliques: 250000 },
 }

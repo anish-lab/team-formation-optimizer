@@ -1,8 +1,8 @@
 """Independent brute-force references (tiny instances only). They share no search code with the solvers."""
 from __future__ import annotations
 from itertools import combinations
-from .models import Graph
-from .constraints import TeamConstraints, validate_assignment, assignment_key
+from optimization.models import Graph
+from optimization.constraints import TeamConstraints, validate_assignment, assignment_key
 
 
 def brute_force_mwcp(graph: Graph, min_size: int = 1, max_size: int | None = None):

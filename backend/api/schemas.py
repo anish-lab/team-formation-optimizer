@@ -44,6 +44,4 @@ def parse_settings(raw, max_time: float) -> dict:
         raise ApiError("invalid_setting", "node_limit must be a positive integer.", 422)
     return {"objective": objective, "team": dict(team, preferred_size=pref),
             "limits": {"time_limit": _num(lim, "time_limit", 30, 0.1, max_time), "node_limit": nl,
-                       "max_cliques": int(_num(lim, "max_cliques", 250000, 100, 2_000_000)),
-                       "use_coloring": bool(lim.get("use_coloring", True)),
-                       "allow_heuristic": bool(lim.get("allow_heuristic", False))}}
+                       "max_cliques": int(_num(lim, "max_cliques", 250000, 100, 2_000_000))}}

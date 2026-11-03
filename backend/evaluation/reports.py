@@ -10,7 +10,7 @@ from optimization.constraints import TeamConstraints, validate_assignment
 MAX_EDGES_RETURNED = 3000
 
 
-def build_result(built: BuiltGraph, tc: TeamConstraints, res, heuristic: bool = False, violations=None) -> dict:
+def build_result(built: BuiltGraph, tc: TeamConstraints, res) -> dict:
     g, obj = built.graph, built.objective
     teams = []
     for k, t in enumerate(res.teams):
@@ -42,8 +42,8 @@ def build_result(built: BuiltGraph, tc: TeamConstraints, res, heuristic: bool = 
     vsum = sum(t.value_score for t in res.teams)
     csum = sum(t.compat_score for t in res.teams)
     return {
-        "status": res.status, "optimality_proven": res.optimality_proven, "heuristic": heuristic,
-        "termination_reason": res.termination_reason, "issues": res.issues, "violations": violations or [],
+        "status": res.status, "optimality_proven": res.optimality_proven,
+        "termination_reason": res.termination_reason, "issues": res.issues,
         "objective": {"formula": "TeamScore(C) = alpha*sum(w_i)/k_ref + beta*sum_{i<j} c_ij/C(k_ref,2); total = sum over teams",
                       **obj.to_dict(), "priority": tc.priority,
                       "priority_explained": ("lexicographic: (1) hard constraints, (2) number of assigned candidates, (3) total team score, (4) deterministic first-found tie-break"
@@ -82,7 +82,6 @@ def unassigned_csv(result: dict) -> str:
 def summary_text(result: dict, config: dict) -> str:
     s, o = result["summary"], result["objective"]
     guarantee = ("PROVEN OPTIMUM for the stated objective and constraints" if result["optimality_proven"] else
-                 "HEURISTIC solution (no optimality guarantee)" if result["heuristic"] else
                  "Best solution found; optimality NOT proven" if result["teams"] else f"No solution ({result['status']})")
     lines = ["Team formation experiment summary", "=" * 34, f"Status: {result['status']} - {guarantee}",
              f"Termination reason: {result['termination_reason']}", "",
@@ -91,6 +90,6 @@ def summary_text(result: dict, config: dict) -> str:
              f"Teams formed: {s['teams']} (sizes {s['team_sizes']}); assigned {s['assigned']}, unassigned {s['unassigned']}",
              f"Total score: {s['total_score']:.6f} (value part {s['value_contribution']:.6f}, compatibility part {s['compat_contribution']:.6f})",
              f"Runtime: {s['runtime_s']:.3f}s; search nodes {result['stats'].get('nodes')}, pruned by bound {result['stats'].get('pruned_by_bound')}",
-             f"Algorithm: {result['stats'].get('algorithm', 'greedy heuristic')}; possible teams in the team graph: {result['stats'].get('team_graph_vertices', 'n/a')}",
+             f"Algorithm: {result['stats'].get('algorithm')}; possible teams in the team graph: {result['stats'].get('team_graph_vertices', 'n/a')}",
              "", "Configuration (for reproducibility):", json.dumps(config, indent=2)]
     return "\n".join(lines)

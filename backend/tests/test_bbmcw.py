@@ -1,11 +1,9 @@
 import random
 import pytest
 from itertools import combinations
-from optimization.bbmcw import solve_bbmcw, degeneracy_order
-from optimization.brute_force_reference import brute_force_mwcp
+from optimization.bbmcw import bits, solve_bbmcw, degeneracy_order
 from optimization.models import Graph
-from optimization.mwcp_solver import solve_clique
-from optimization.coloring_bound import bits
+from .brute_force import brute_force_mwcp
 
 
 def rg(seed, n, p, ints=True):
@@ -49,11 +47,19 @@ def test_matches_brute_force(seed):
 
 
 @pytest.mark.parametrize("seed", range(10))
-def test_agrees_with_adapted_solver_on_larger_graphs(seed):
+def test_matches_full_enumeration_on_larger_graphs(seed):
     g = rg(100 + seed, 26, 0.6 + 0.03 * seed)
     a = solve_bbmcw(g.vw, g.adj)
-    b = solve_clique(g, 1, None, True)
-    assert a.optimal and b.optimal and abs(a.weight - b.score) < 1e-9
+
+    def reference(P, total):                                  # plain enumeration of every clique, sharing no code with the solver
+        best = total
+        for v in bits(P):
+            best = max(best, reference(P & g.adj[v] & ~((1 << (v + 1)) - 1), total + g.vw[v]))
+        return best
+
+    assert a.optimal and abs(a.weight - reference((1 << g.n) - 1, 0.0)) < 1e-9
+    for off in ({"use_mcover": False}, {"use_cover": False, "use_mcover": False}, {"use_amts": False}, {"max_set_size": None}):
+        assert abs(solve_bbmcw(g.vw, g.adj, **off).weight - a.weight) < 1e-9
 
 
 @pytest.mark.parametrize("seed", range(40))
@@ -66,12 +72,8 @@ def test_pruned_set_property_holds(seed):
         P = [v for v in bits(V) if v not in B]
         checks.append((P, budget))
 
-    solve_bbmcw(g.vw, g.adj, hook=hook)
-    # the hook reports indices in the internal (reordered) labelling; rebuild the same labelling
-    order = degeneracy_order(g.vw, g.adj)
-    inv = {o: i for i, o in enumerate(order)}
-    w = [g.vw[order[i]] for i in range(g.n)]
-    A = [sum(1 << inv[j] for j in bits(g.adj[order[i]])) for i in range(g.n)]
+    solve_bbmcw(g.vw, g.adj, hook=hook, preordered=True)
+    w, A = g.vw, g.adj
     for P, budget in checks:
         best = 0.0
         for k in range(1, len(P) + 1):

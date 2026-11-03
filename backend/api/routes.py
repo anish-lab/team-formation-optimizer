@@ -9,7 +9,7 @@ from data.validation import validate_dataset, inspect_columns
 from graph.builder import build_graph
 from graph.metrics import graph_metrics
 from optimization.constraints import resolve_constraints, check_feasibility, ConstraintError
-from evaluation.benchmark import run_comparison, BRUTE_FORCE_MAX_N
+from evaluation.benchmark import run_comparison
 from evaluation.reports import teams_csv, unassigned_csv, summary_text
 from .errors import ApiError
 from .schemas import load_json_field, parse_settings
@@ -185,7 +185,7 @@ def task_export(tid):
     if fmt == "summary_txt":
         return Response(summary_text(r, t.config), mimetype="text/plain", headers={"Content-Disposition": "attachment; filename=summary.txt"})
     if fmt == "json":
-        slim = {k: r[k] for k in ("status", "optimality_proven", "heuristic", "termination_reason", "objective", "constraints", "summary", "unassigned", "stats")}
+        slim = {k: r[k] for k in ("status", "optimality_proven", "termination_reason", "objective", "constraints", "summary", "unassigned", "stats")}
         slim["teams"] = [{"team": x["team"], "score": x["score"], "value_score": x["value_score"], "compat_score": x["compat_score"],
                           "members": [m["id"] for m in x["members"]]} for x in r["teams"]]
         return Response(json.dumps({"result": slim, "configuration": t.config}, indent=2), mimetype="application/json",
@@ -205,4 +205,4 @@ def evaluate():
         raise ApiError("invalid_setting", "repeats must be an integer.", 422)
     L = settings["limits"]
     out = run_comparison(built.graph, tc, min(L["time_limit"], 60.0), L["node_limit"], L["max_cliques"], max(1, min(repeats, 5)))
-    return ok(evaluation=out, brute_force_max_n=BRUTE_FORCE_MAX_N)
+    return ok(evaluation=out)

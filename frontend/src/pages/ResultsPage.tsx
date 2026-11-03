@@ -11,7 +11,7 @@ export default function ResultsPage({ ctx }: { ctx: Ctx }) {
   const [q, setQ] = useState('')
   if (!r) return <Notice>No result yet. Run an optimization first.</Notice>
   const s = r.summary, st = r.stats
-  const guarantee = r.optimality_proven ? 'Proven optimum' : r.heuristic ? 'Heuristic (no guarantee)' : r.teams.length ? 'Best found, not proven' : r.status
+  const guarantee = r.optimality_proven ? 'Proven optimum' : r.teams.length ? 'Best found, not proven' : r.status
   const teams = r.teams.filter((t: any) => !q || t.members.some((m: any) => m.id.toLowerCase().includes(q.toLowerCase())))
   return (
     <>
@@ -23,7 +23,7 @@ export default function ResultsPage({ ctx }: { ctx: Ctx }) {
         <Stat label="Runtime (s)" value={fmt(s.runtime_s, 3)} /><Stat label="Team sizes" value={s.team_sizes.join(', ') || '–'} />
         <Stat label="Nodes explored" value={st.nodes} /><Stat label="Pruned by bound" value={st.pruned_by_bound} /><Stat label="Pruned by feasibility" value={st.pruned_by_feasibility} /><Stat label="Incumbent updates" value={st.incumbent_updates} /></div>
       <Card title="Objective used">
-        {st.algorithm === 'bbmcw_team_graph' && <p className="text-xs">Solved with BBMCW (San Segundo, Furini &amp; Artieda, 2019) as a maximum weighted clique on a graph of {st.team_graph_vertices} possible teams, where two teams are connected if they share no one.</p>}
+        {st.algorithm === 'bbmcw_team_graph' && <p className="text-xs">Solved with AMTS and BBMCW (San Segundo, Furini &amp; Artieda, 2019) as a maximum weighted clique on a graph of {st.team_graph_vertices} possible teams, where two teams are connected if they share no one.</p>}
         <p className="text-xs">{r.objective.formula}</p>
         <p className="text-xs text-slate-600">α={r.objective.alpha}, β={r.objective.beta}, edges: {r.objective.edge_mode} (threshold {r.objective.threshold}), k = {r.objective.preferred_size}. Priority: {r.objective.priority_explained}.</p>
         <p className="text-xs text-slate-600">Constraints: sizes {r.constraints.min_size}–{r.constraints.max_size}, teams {r.constraints.teams_min}–{r.constraints.teams_max}, full coverage: {String(r.constraints.full_coverage)}, equal sizes: {String(r.constraints.equal_sizes)}.</p>

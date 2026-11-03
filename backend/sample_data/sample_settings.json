@@ -12,7 +12,6 @@
     "strict_team_count": true
   },
   "limits": {
-    "time_limit": 30,
-    "use_coloring": true
+    "time_limit": 30
   }
 }

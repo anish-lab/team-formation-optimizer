@@ -1,22 +1,16 @@
-# Optimal Team Formation via Maximum Weighted Clique, Branch-and-Bound and Coloring Bounds
+# Optimal Team Formation with the BBMCW Algorithm for the Maximum Weighted Clique Problem
 
 Full-stack academic project: React + Vite + TypeScript + Tailwind frontend, Flask backend, exact optimisation in pure Python.
-Teams are formed with the BBMCW algorithm from San Segundo, Furini & Artieda, *"A New Branch-and-Bound Algorithm for the Maximum Weighted Clique Problem"*, Computers & Operations Research, 2019.
+Teams are formed **only** by the algorithms in San Segundo, Furini & Artieda, *"A New Branch-and-Bound Algorithm for the Maximum Weighted Clique Problem"*, Computers & Operations Research, 2019: AMTS for the initial solution, then BBMCW.
 
 > **Honest scope statement.**
-> * `backend/optimization/bbmcw.py` implements the algorithm **as described in the paper's text** (Branching/Pruned Sets, partial colouring
->   with loads, splitting rules R1-R3, COVER, MCOVER, GenBranchSet, degeneracy ordering). The paper solves the *classical vertex-weighted* MWCP.
->   This code differs from the paper in: greedy initial incumbent instead of AMTS, no colour-sort ordering, no "3 vertices per independent set" cap,
->   and the printed MWCP gap update (garbled in the text extraction) is recomputed from the bound definition. It is verified by brute-force
->   comparison and a test of the Pruned-Set property, **not** by reproducing the paper's benchmark tables.
-> * Team formation needs team-size limits, pairwise (edge) weights and several teams, which the paper does not address. `team_conflict_solver.py`
->   **reduces team formation to the classical problem** and runs BBMCW on the result (see below). The reduction and the team-count, coverage and
->   packing-bound additions are this project's own work, not the paper's.
-> * The earlier solver (`multi_team_solver.py`, `mwcp_solver.py`) does not use the paper's algorithm. It is kept as an independent comparison.
-> * Compare page / `python -m evaluation.benchmark` show all of them.
+> * `optimization/bbmcw.py` implements the paper's Algorithms 1-5, rules R1-R3, both initial orderings with the choice at the root, and the 3-vertex limit. `optimization/amts.py` implements AMTS, which the paper names but only cites, following Wu & Hao (2013). It was compared step by step with the preprint, and `tests/test_paper_examples.py` reproduces the paper's Figure 1 result, R3 example and Section 3 demonstration. It does **not** reproduce the paper's benchmark tables.
+> * Where this code departs from the printed text: Algorithm 3 (steps 9, 17) and Algorithm 5 (step 4) print gap formulas that disagree with the paper's own example in Section 3, and the code follows the example. The paper gives no details for the 3-vertex limit, weighted AMTS or COLOUR SORT beyond a sentence, so those details are this project's reading. They are listed in the module docstrings.
+> * Not from the paper, because the paper has no teams: modelling teams as a graph (the same pattern as its Section 4.4 applications), the rule checks that enforce team count, coverage and sizes, and the cap of 20 000 team-graph vertices. None of these changes the bound.
+> * Python, not the paper's C++. Speeds are not comparable with the paper's.
 
 ## Quick start
-The UI (**CliqueCraft**) opens on an entrance page, then a step-by-step wizard (one question per screen: upload → row labels → columns → role and importance per column → team size → everyone in a team → run). Results, Graph, Compare (coloring on/off, greedy, brute force) and Export follow. Light and dark themes are available.
+The UI (**CliqueCraft**) opens on an entrance page, then a step-by-step wizard (one question per screen: upload → row labels → columns → role and importance per column → team size → everyone in a team → run). Results, Graph, Compare (BBMCW with parts switched off) and Export follow. Light and dark themes are available.
 ```bash
 # backend (Python 3.11+)
 cd backend && python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -43,7 +37,7 @@ Vertices = candidates. Per feature f (importance `imp_f`, role value/compat/both
 * **Exactness** is with respect to this objective and the chosen constraints only.
 
 ### From team formation to the paper's problem
-The classical MWCP returns one clique, and repeating "best clique, remove, repeat" is a greedy heuristic that is **not** globally optimal (see `test_greedy_is_suboptimal_where_exact_succeeds`). Instead the app builds a second graph, the **team graph**, and solves one MWCP on it:
+The classical MWCP returns one clique, and repeating "best clique, remove, repeat" is **not** globally optimal (see `test_finds_the_joint_optimum_that_greedy_misses`). Instead the app builds a second graph, the **team graph**, and solves one MWCP on it:
 * one vertex per feasible team (a clique of the candidate graph with size in `[min,max]`), so size limits decide which vertices exist;
 * vertex weight = `TeamScore`, so pairwise compatibilities are folded into a plain vertex weight;
 * an edge between two teams iff they share no candidate.
@@ -54,16 +48,13 @@ Teams are chosen **jointly**: a set of vertex-disjoint cliques with sizes in `[m
 `(assigned candidates, total score)` (priority `coverage_first`) or `(total score)` (`quality_first`), ties broken by a fixed deterministic search order.
 
 ### Algorithms
-1. `optimization/bbmcw.py` — the paper's algorithm for the classical MWCP (see scope statement). Optional `accept` / `restrict` arguments add the team rules; they are off by default.
-2. `optimization/team_conflict_solver.py` — **the app's team solver**: enumerates feasible teams, builds the team graph with the paper's degeneracy ordering, and calls BBMCW. Above 20 000 possible teams it keeps each candidate's best teams of each size; such a result is never reported as proven.
+1. `optimization/amts.py` — AMTS, the initial solution (paper p. 17; details from Wu & Hao 2013).
+2. `optimization/bbmcw.py` — COLOR, COVER, MCOVER, GenBranchSet and the search; degeneracy and colour-sort orderings. `accept` and `restrict` add the team rules and are off by default.
+3. `optimization/team_conflict_solver.py` — lists feasible teams, builds the team graph, and runs AMTS then BBMCW on it. Above 20 000 possible teams it keeps each candidate's best teams of each size; such a result is never reported as proven.
 
-Kept for comparison (none of these use the paper's algorithm):
-* `optimization/mwcp_solver.py` — exact size-constrained weighted-clique B&B.
-* `optimization/coloring_bound.py` — bound derivation in the module docstring. A *proper* greedy colouring of the candidate set splits it into independent classes; a clique takes ≤1 vertex per class and ≤m vertices (m = remaining capacity). Per-vertex bounds `b_v = w_v + Σ_{u∈R} c_uv + ½·(sum of the m−1 largest incident pair weights)` make the bound valid with pair terms; the bound is the sum of the m largest class maxima. Without colouring the bound is the sum of the m largest `b_v` (always ≥ the colouring bound). Both are valid, so pruning never removes an optimum; tests check this exhaustively on small states.
-* `optimization/multi_team_solver.py` — the earlier team solver: enumerates all feasible team cliques (memory-capped), computes the exact best team per smallest vertex with the MWCP solver, then runs an outer B&B that, at the lowest undecided vertex, opens a team there or leaves it unassigned. Every assignment is generated once. Node bound: `coverage ≤ covered + min(free, r·size_cap)`, `quality ≤ q + Σ(top r best-team values)`.
-* `greedy_baseline.py` (heuristic) and `brute_force_reference.py` (independent, tiny n) for comparison and testing.
+No other algorithm can produce teams. `tests/brute_force.py` exists only to check answers in the tests.
 
-Statuses: `optimal` (search finished, proven), `infeasible` (exhaustive search or arithmetic check: no valid assignment), `feasible_not_proven` (stopped by time/node limit with an incumbent), `no_solution_found` (stopped before any valid assignment), `too_large` (team enumeration exceeded the cap), `heuristic` (greedy fallback, only if the user allowed it). A stopped search is never reported as optimal.
+Statuses: `optimal` (search finished, proven), `infeasible` (exhaustive search or arithmetic check: no valid assignment), `feasible_not_proven` (stopped by time/node limit with an incumbent), `no_solution_found` (stopped before any valid assignment), `too_large` (team enumeration exceeded the cap). A stopped search is never reported as optimal.
 
 ### Leftover policies (resolved into explicit constraints, nothing is silently relaxed)
 | Policy | Meaning |
@@ -83,7 +74,7 @@ flowchart LR
   API --> V[CSV loader & validation]
   V --> G[Graph builder]
   G --> S[Team graph builder]
-  S --> M[BBMCW]
+  S --> M[AMTS, then BBMCW]
   API --> T[In-memory task store / worker thread]
   T --> S
 ```
@@ -103,63 +94,39 @@ flowchart TD
 Repository: `backend/{api,data,graph,optimization,evaluation,tests,sample_data}`, `frontend/src/{pages,components,services,types}`.
 
 ## API (all JSON; errors: `{ok:false,error:{code,message,details}}`)
-`GET /api/health` · `POST /api/preview-data` · `POST /api/validate-csv` · `POST /api/validate-configuration` (JSON) · `POST /api/build-graph` (optional `explain_pair=idA,idB`) · `POST /api/optimize` (202 + `task_id`) · `GET /api/optimization/<id>` (status/progress) · `/results` · `/statistics` · `POST /cancel` · `GET /export?format=teams_csv|unassigned_csv|json|stats_json|summary_txt` · `POST /api/evaluate` (colouring on/off, greedy, brute force for n ≤ 9).
+`GET /api/health` · `POST /api/preview-data` · `POST /api/validate-csv` · `POST /api/validate-configuration` (JSON) · `POST /api/build-graph` (optional `explain_pair=idA,idB`) · `POST /api/optimize` (202 + `task_id`) · `GET /api/optimization/<id>` (status/progress) · `/results` · `/statistics` · `POST /cancel` · `GET /export?format=teams_csv|unassigned_csv|json|stats_json|summary_txt` · `POST /api/evaluate` (BBMCW with parts switched off, as in the paper's Section 4.5).
 Multipart fields: `file`, `schema` (JSON feature list), `id_column`, `settings` (JSON: `objective`, `team`, `limits`).
 Design: optimisation runs in a background thread per task with polling and cancellation; task state is in memory only (lost on restart), no database, uploads are parsed in memory and never written to disk or executed. Limits: 5 MB upload, 5000 rows, 300 candidates, 600 s, restrictive CORS, no stack traces in responses.
 
 ## Interpreting evaluation
-Compare rows with the *same* settings. "proven optimum" rows share a guarantee; "heuristic" rows do not. Pruning efficiency = bound-pruned branches / branches considered. Colouring is **not** guaranteed to help.
-Measured here (this machine, Python 3.12, random graphs from `evaluation.benchmark`, 3 repeats):
+The Compare page runs the paper's BBMCW with parts switched off, as in its Section 4.5: without MCOVER, without COVER and MCOVER, and without AMTS. Compare rows with the *same* status.
 
-| instance | method | runtime | nodes | objective | guarantee |
-|---|---|---|---|---|---|
-| n=16, d=0.73, 3 teams of 3 | multi-team exact, colouring on | 3.1 ms | 527 | 13.7462 | proven |
-| same | colouring off | 2.9 ms | 527 | 13.7462 | proven |
-| same | greedy | 0.7 ms | – | 13.7462 | heuristic |
-| n=22, d=0.5, 3 teams of 4 | single-team MWCP, colouring on / off | 0.3 / 0.3 ms | 15 / 16 | 7.2734 | proven |
-| same | multi-team exact on / off | 8.4 / 6.8 ms | 1810 / 1810 | 18.4391 | proven |
+Measured on Python 3.14, 20 s limit, one run each. First rows of `sample_data`, with the wizard's settings (anyone can team with anyone):
 
-On these small instances colouring gave **no measurable speed-up** (the multi-team phase is dominated by the outer search; colouring only affects the MWCP phase). Do not infer a speed-up from them. Greedy happened to match the optimum here; the test-suite contains a constructed instance where it cannot.
-
-The new team solver against the earlier one, same 20 s limit, one run each (Python 3.14; the demo data is `sample_data`, the others are complete random graphs):
-
-| instance | BBMCW team graph | earlier solver |
-|---|---|---|
-| demo, 3 teams of 3 | proven, 2.04 s, 4.7578 | proven, 0.08 s, 4.7578 |
-| demo, 4 teams of 3 | proven, 7.68 s, 6.2541 | proven, 0.44 s, 6.2541 |
-| demo, 8 teams of 3 | not proven, 11.5674 | not proven, **11.5734** |
-| demo, 5 teams of 4-5 | not proven, **9.9280** | not proven, 9.8768 |
-| 30 people, teams of 4 | not proven, **49.251** | not proven, 48.346 |
-| 50 people, teams of 4 | not proven, **83.868** | not proven, 81.851 |
-| 100 people, teams of 3 | not proven, **138.979** | not proven, 136.306 |
-
-So the earlier solver proves small cases faster, and the new solver usually, not always, finds better teams on larger ones. **Most of that gain comes from the greedy starting solution, not from BBMCW's search:** on the three largest rows the starting solution alone already beat the earlier solver, and BBMCW then added 0.13, 1.13 and 0.00. On the three demo rows it added 0.00 (4 teams of 3), 0.09 (8 teams of 3) and 0.06 (5 teams of 4-5). BBMCW's main contribution is the proof where the search finishes. The three largest rows searched only part of the team graph because of the 20 000 limit. These are small samples and say nothing about the paper's published benchmarks.
-
-Paper-style vs adapted solver, classical vertex-weighted MWCP, one random graph per row, single run, Python 3.12, this machine
-(integer weights 1-100):
-
-| n | density | paper-style BBMCW | adapted, colouring on | adapted, colouring off |
+| people, team size | possible teams | result | time | score |
 |---|---|---|---|---|
-| 60 | 0.5 | 0.005 s / 34 nodes | 0.028 s / 172 | 0.086 s / 669 |
-| 80 | 0.8 | 0.041 s / 516 | 0.786 s / 2791 | 9.43 s / 36 976 |
+| 12, teams of 3 | 220 | proven | 0.03 s | 5.3696 |
+| 12, teams of 4 | 495 | proven | 0.01 s | 3.9874 |
+| 15, teams of 3 | 455 | proven | 2.22 s | 7.0296 |
+| 16, teams of 4 | 1 820 | proven | 3.99 s | 5.6654 |
+| 18, teams of 3 | 816 | not proven | 20 s | 8.4659 |
+| 21, teams of 3 | 1 330 | not proven | 20 s | 9.8892 |
+| 24, teams of 3 | 2 024 | not proven | 20 s | 11.4506 |
 
-All three returned the same optimum. These are small random instances and a Python implementation; they say nothing about the paper's published benchmarks.
-Here the paper-style algorithm was faster and colouring helped the adapted solver, in contrast to the small team-formation instances above.
+These small samples say nothing about the paper's published benchmarks. On the 15-person team graph, one run each, COVER and MCOVER cut search nodes by 0.2% to 5% depending on the chosen columns and were slower overall. On classical random graphs they cut nodes by up to nearly 6×, the same direction as the paper's Section 4.5. A likely reason, not tested, is that heavily overlapping teams make colour classes weak.
 
 ## Known limitations
-* Exact search is exponential. On the 24-candidate demo data, 5 teams of 4–5 and 8 teams of 3 did **not** finish a proof within 20 s (status `feasible_not_proven`); 4 equal teams of 3 proved optimal in about 8 s. Proofs are practical only for a handful of teams or sparser graphs (raise the threshold).
-* All feasible teams are enumerated first (cap `max_cliques`, default 250 000); dense graphs with large teams hit `too_large`. A labelled greedy fallback is available only if enabled. Between 20 000 and that cap the team graph is reduced and the result is not proven.
-* The UI's `use_coloring` setting no longer affects team formation, because BBMCW always uses its own bound. It only applies to the earlier solver.
+* Exact search is exponential, and the paper's bound is weak on team graphs. Proofs are practical for about 16 people. Beyond that the result is valid but `feasible_not_proven`.
+* All feasible teams are enumerated first (cap `max_cliques`, default 250 000); dense graphs with large teams hit `too_large`. Between 20 000 and that cap the team graph is reduced and the result is not proven.
 * The wizard uses soft edges (a complete graph), so "everyone in a team" with 24 candidates and teams of 4 is already above the 20 000-team limit.
-* `numpy` is a pandas dependency; the solver uses Python integers (bitsets) rather than NumPy.
 * No authentication, persistence or multi-user isolation beyond per-task state. Single process; tasks are lost on restart.
 * Hard-mode compatibility is used both as an edge rule and as a score term (see above).
 * Unassigned-candidate explanations are limited to what the solver can substantiate.
 
 ## Future improvements
-The paper's AMTS initial solution and colour-sort ordering, stronger packing bounds (LP/Lagrangian), decomposition by connected components, persistence, a pairwise "why no edge" UI, parallel search.
+From the paper's future work (p. 28): the reNumber local search, incremental MaxSAT reasoning, and conflict-directed clause learning. Also running the DIMACS and BHOSHLIB graphs to compare with its tables.
 
 ## Citation
 P. San Segundo, F. Furini, J. Artieda. *A new branch-and-bound algorithm for the Maximum Weighted Clique Problem.* Computers & Operations Research, vol. 110, pp. 18–33, 2019. DOI: 10.1016/j.cor.2019.05.017.
 
-(Metadata checked against publisher/repository records; the full text was not consulted for this project. Not to be confused with San Segundo, Coniglio, Furini & Ljubić, *A new branch-and-bound algorithm for the maximum edge-weighted clique problem*, EJOR 278, 2019.)
+(Implementation compared with the 36-page preprint submitted on 26 March 2019, not the final journal typesetting. Not to be confused with San Segundo, Coniglio, Furini & Ljubić, *A new branch-and-bound algorithm for the maximum edge-weighted clique problem*, EJOR 278, 2019.)

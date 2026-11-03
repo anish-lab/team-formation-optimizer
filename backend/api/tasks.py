@@ -5,7 +5,6 @@ import time
 import uuid
 import logging
 from optimization.team_conflict_solver import solve_teams_bbmcw
-from optimization.greedy_baseline import greedy_teams
 from evaluation.reports import build_result
 
 log = logging.getLogger("tasks")
@@ -35,12 +34,7 @@ class Task:
             L = self.limits
             res = solve_teams_bbmcw(self.built.graph, self.tc, L["time_limit"], L["node_limit"], L["max_cliques"],
                                     self.cancel.is_set, self.progress)
-            heuristic, viol = False, None
-            if res.status == "too_large" and L["allow_heuristic"]:
-                res, viol = greedy_teams(self.built.graph, self.tc)
-                res.issues = [{"code": "heuristic_fallback", "message": "Exact search was too large; a labelled greedy heuristic was used.", "suggestions": []}]
-                heuristic = True
-            self.result = build_result(self.built, self.tc, res, heuristic, viol)
+            self.result = build_result(self.built, self.tc, res)
             self.status = "cancelled" if res.termination_reason == "cancelled" else "finished"
         except Exception:  # never leak stack traces to clients
             log.exception("optimisation task %s failed", self.id)

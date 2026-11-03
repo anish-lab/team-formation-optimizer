@@ -1,11 +1,10 @@
 import pytest
 from optimization.bbmcw import degeneracy_order
-from optimization.brute_force_reference import brute_force_multi
 from optimization.clique_generation import enumerate_cliques
 from optimization.constraints import TeamConstraints, assignment_key, validate_assignment
 from optimization.models import Graph
-from optimization.multi_team_solver import solve_multi_team
 from optimization.team_conflict_solver import solve_teams_bbmcw, team_graph_order
+from .brute_force import brute_force_multi
 from .helpers import rand_graph
 
 
@@ -44,15 +43,44 @@ def test_matches_brute_force(seed):
         assert validate_assignment(g, c, [t.members for t in r.teams]) == []
 
 
+def exhaustive_packing(g, c):
+    """Every valid set of disjoint teams, enumerated plainly.  Shares no search code with the solver."""
+    teams = [t for lst in enumerate_cliques(g, c.min_size, c.max_size, 10**7) for t in lst]
+    best = {"key": None}
+
+    def go(i, used, chosen):
+        if validate_assignment(g, c, [list(t.members) for t in chosen]) == []:
+            key = assignment_key(g, c, [list(t.members) for t in chosen])
+            if best["key"] is None or key[0] > best["key"][0] or (key[0] == best["key"][0] and key[1] > best["key"][1] + 1e-12):
+                best["key"] = key
+        if len(chosen) == c.teams_max:
+            return
+        for j in range(i, len(teams)):
+            if not teams[j].mask & used:
+                go(j + 1, used | teams[j].mask, chosen + [teams[j]])
+
+    go(0, 0, [])
+    return best["key"]
+
+
 @pytest.mark.parametrize("seed", range(24))
-def test_agrees_with_previous_solver_on_larger_graphs(seed):
-    g = rand_graph(300 + seed, 12 + seed % 5, p=0.5 + (seed % 4) * 0.15)
+def test_matches_exhaustive_packing_on_larger_graphs(seed):
+    g = rand_graph(300 + seed, 10 + seed % 3, p=0.4 + (seed % 4) * 0.1)
     c = tc(**CONFIGS[seed % len(CONFIGS)])
-    a, b = solve_teams_bbmcw(g, c), solve_multi_team(g, c)
-    assert a.status == b.status
-    if a.optimality_proven:
-        assert abs(a.total_score - b.total_score) < 1e-9
-        assert c.priority == "quality_first" or a.coverage == b.coverage
+    exp, r = exhaustive_packing(g, c), solve_teams_bbmcw(g, c)
+    if exp is None:
+        assert r.status == "infeasible"
+    else:
+        key = assignment_key(g, c, [t.members for t in r.teams])
+        assert r.status == "optimal" and key[0] == exp[0] and abs(key[1] - exp[1]) < 1e-9
+
+
+@pytest.mark.parametrize("off", [{"use_mcover": False}, {"use_cover": False, "use_mcover": False}, {"use_amts": False}])
+def test_switching_off_parts_of_the_paper_keeps_the_optimum(off):
+    g = rand_graph(11, 12, p=0.7)
+    c = tc(min_size=3, max_size=3, teams_min=2, teams_max=3, preferred_size=3)
+    a, b = solve_teams_bbmcw(g, c), solve_teams_bbmcw(g, c, **off)
+    assert a.optimality_proven and b.optimality_proven and abs(a.total_score - b.total_score) < 1e-9
 
 
 @pytest.mark.parametrize("seed", range(10))

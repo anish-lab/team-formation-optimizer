@@ -90,14 +90,12 @@ def test_evaluate_endpoint_compares_modes(client):
     s = json.loads(json.dumps(SETTINGS))
     r = client.post("/api/evaluate", data={**form(settings=s), "repeats": "1"}, content_type="multipart/form-data")
     rows = r.get_json()["evaluation"]["rows"]
-    algos = {(x["algorithm"], x["coloring"]) for x in rows}
-    assert {("bbmcw_team_graph", None), ("multi_team_exact", True), ("multi_team_exact", False), ("greedy_baseline", None), ("mwcp_single_team", True)} <= algos
-    exact = [x for x in rows if x["algorithm"] in ("bbmcw_team_graph", "multi_team_exact")]
-    assert max(x["objective"] for x in exact) - min(x["objective"] for x in exact) < 1e-9
+    assert [x["algorithm"] for x in rows] == ["BBMCW (full algorithm)", "BBMCW without MCOVER", "BBMCW without COVER and MCOVER", "BBMCW without AMTS"]
+    assert max(x["objective"] for x in rows) - min(x["objective"] for x in rows) < 1e-9
 
 
 def test_evaluate_includes_paper_style_comparison(client):
     r = client.post("/api/evaluate", data={**form(), "repeats": "1"}, content_type="multipart/form-data")
     vw = r.get_json()["evaluation"]["vertex_weighted"]["rows"]
-    assert {x["algorithm"] for x in vw} == {"paper_bbmcw", "adapted_coloring_on", "adapted_coloring_off"}
+    assert len(vw) == 4
     assert max(x["objective"] for x in vw) - min(x["objective"] for x in vw) < 1e-9

@@ -87,7 +87,7 @@ export default function Wizard({ ctx }: { ctx: Ctx }) {
       ? { policy: 'full_coverage', preferred_size: size, min_size: size, max_size: size + 1, strict_team_count: true, strict_team_size: false, full_coverage: true, equal_sizes: false, priority: 'coverage_first' }
       : { policy: 'leave_unassigned', preferred_size: size, strict_team_count: true, strict_team_size: true, full_coverage: false, equal_sizes: true, priority: 'coverage_first' }
     const settings = { objective: { alpha: 1, beta: 1, edge_mode: 'soft' as const, threshold: 0.5 }, team,
-      limits: { time_limit: 20, node_limit: null, use_coloring: true, allow_heuristic: false, max_cliques: 250000 } }
+      limits: { time_limit: 20, node_limit: null, max_cliques: 250000 } }
     const idc = idCol ?? ''
     try {
       const v = await api.validate(ctx.file, features, idc)
@@ -199,7 +199,7 @@ export default function Wizard({ ctx }: { ctx: Ctx }) {
               <button className="btn-ghost" onClick={() => ctx.taskId && api.cancel(ctx.taskId)}><Square size={14} />Stop and keep best found</button></div>
             <p className="text-xs text-slate-500">Stops by itself after 20 s. Results state clearly whether the teams are proven optimal or just the best found.</p></div>}
           <div className="mt-3"><ErrorView err={err} /></div>
-          <p className="mt-4 text-xs text-slate-500">Fixed settings: anyone can be grouped with anyone (compatibility only adds to the score), value and compatibility weighted equally, solved with the BBMCW maximum weighted clique algorithm, 20 s limit. Missing values are reported, never guessed.</p></>}
+          <p className="mt-4 text-xs text-slate-500">Fixed settings: anyone can be grouped with anyone (compatibility only adds to the score), value and compatibility weighted equally, solved with AMTS and BBMCW from the research paper, 20 s limit. Missing values are reported, never guessed.</p></>}
       </section>
 
       <div className="mt-4 flex items-center justify-between">
