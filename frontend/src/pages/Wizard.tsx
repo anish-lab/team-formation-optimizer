@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, CheckCircle2, Equal, FileSpreadsheet, Loader2, Minus, Plus, Rocket, Shuffle, Square, TrendingUp, UploadCloud, Users } from 'lucide-react'
 import type { Ctx } from '../App'
 import type { Feature } from '../types'
-import { ErrorView, fmt } from '../components/ui'
+import { ErrorView } from '../components/ui'
 import { api } from '../services/api'
 
 type Role = 'skill' | 'match' | 'mix'
@@ -38,7 +38,6 @@ export default function Wizard({ ctx }: { ctx: Ctx }) {
   const [err, setErr] = useState<any>(null)
   const [busy, setBusy] = useState(false)
   const [drag, setDrag] = useState(false)
-  const [st, setSt] = useState<any>(null)
   const timer = useRef<number | null>(null)
   const head = useRef<HTMLHeadingElement>(null)
   useEffect(() => () => { if (timer.current) clearInterval(timer.current) }, [])
@@ -55,7 +54,7 @@ export default function Wizard({ ctx }: { ctx: Ctx }) {
     try {
       const d = await api.preview(f)
       setCols(d.columns); setRows(d.preview); setN(d.n_rows); setIdCol(null); setChosenNames([]); setPicks({})
-      ctx.set({ file: f, nRows: d.n_rows, validated: false, result: null })
+      ctx.set({ file: f, result: null })
     } catch (e) { setErr(e); setCols([]) }
   }
   const examples = (name: string) => rows.slice(0, 3).map(r => r[name]).join(', ')
@@ -81,7 +80,7 @@ export default function Wizard({ ctx }: { ctx: Ctx }) {
 
   async function run() {
     if (!ctx.file) return
-    setErr(null); setBusy(true); setSt(null)
+    setErr(null); setBusy(true)
     const features = chosen.map(c => toFeature(c, picks[c.name]))
     const team = everyone
       ? { policy: 'full_coverage', preferred_size: size, min_size: size, max_size: size + 1, strict_team_count: true, strict_team_size: false, full_coverage: true, equal_sizes: false, priority: 'coverage_first' }
@@ -92,16 +91,15 @@ export default function Wizard({ ctx }: { ctx: Ctx }) {
     try {
       const v = await api.validate(ctx.file, features, idc)
       if (!v.report.ok) { setErr({ message: 'Fix these problems in your CSV first:', details: v.report }); setBusy(false); return }
-      ctx.set({ features, idColumn: idc, settings, validated: true })
       const { task_id } = await api.optimize(ctx.file, features, idc, settings)
       ctx.set({ taskId: task_id, result: null })
       timer.current = window.setInterval(async () => {
         try {
-          const s = await api.status(task_id); setSt(s)
+          const s = await api.status(task_id)
           if (!['queued', 'running'].includes(s.status)) {
             clearInterval(timer.current!); setBusy(false)
-            if (s.status !== 'failed') { const r = await api.results(task_id); ctx.set({ taskId: task_id, result: r.result, config: r.config }); ctx.go('results') }
-            else setErr({ message: s.error?.message ?? 'The optimisation failed.' })
+            if (s.status !== 'failed') { const r = await api.results(task_id); ctx.set({ taskId: task_id, result: r.result }); ctx.go('results') }
+            else setErr({ message: s.error?.message ?? 'Something went wrong while finding teams.' })
           }
         } catch (e) { clearInterval(timer.current!); setErr(e); setBusy(false) }
       }, 500)
@@ -113,7 +111,6 @@ export default function Wizard({ ctx }: { ctx: Ctx }) {
       <h1 ref={head} tabIndex={-1} className="text-2xl font-bold outline-none md:text-3xl">{t}</h1>
       {sub && <p className="mt-1 text-sm text-slate-600">{sub}</p>}
     </div>)
-  const p = st?.progress ?? {}
   const colName = cur?.startsWith('col:') ? cur.slice(4) : ''
   const col = cols.find(c => c.name === colName)
 
@@ -192,14 +189,13 @@ export default function Wizard({ ctx }: { ctx: Ctx }) {
             <dt className="text-slate-500">Row labels</dt><dd className="col-span-2 font-medium">{idCol || 'row numbers'}</dd>
             <dt className="text-slate-500">Columns</dt><dd className="col-span-2 font-medium">{chosen.map(c => `${c.name} (${picks[c.name].role}, ${IMPORTANCE[picks[c.name].importance]})`).join(' · ')}</dd>
             <dt className="text-slate-500">Teams</dt><dd className="col-span-2 font-medium">{summary}</dd></dl>
-          <button className="btn mt-5 px-6 py-3 text-base" disabled={busy} onClick={run}>{busy ? <><Loader2 className="animate-spin" size={18} />Searching…</> : <><Rocket size={18} />Find teams</>}</button>
+          <button className="btn mt-5 px-6 py-3 text-base" disabled={busy} onClick={run}>{busy ? <><Loader2 className="animate-spin" size={18} />Finding teams…</> : <><Rocket size={18} />Find teams</>}</button>
           {busy && <div className="mt-4 space-y-2">
             <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"><div className="h-full w-1/3 animate-pulse rounded-full bg-indigo-500" /></div>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600"><span>{fmt(st?.elapsed_s ?? 0, 1)} s</span><span>{p.nodes ?? 0} nodes explored</span><span>best score so far {fmt(p.incumbent_score)}</span>
-              <button className="btn-ghost" onClick={() => ctx.taskId && api.cancel(ctx.taskId)}><Square size={14} />Stop and keep best found</button></div>
-            <p className="text-xs text-slate-500">Stops by itself after 20 s. Results state clearly whether the teams are proven optimal or just the best found.</p></div>}
+            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600"><span>This can take up to 20 seconds.</span>
+              <button className="btn-ghost" onClick={() => ctx.taskId && api.cancel(ctx.taskId)}><Square size={14} />Stop and show the best so far</button></div></div>}
           <div className="mt-3"><ErrorView err={err} /></div>
-          <p className="mt-4 text-xs text-slate-500">Fixed settings: anyone can be grouped with anyone (compatibility only adds to the score), value and compatibility weighted equally, solved with AMTS and BBMCW from the research paper, 20 s limit. Missing values are reported, never guessed.</p></>}
+          </>}
       </section>
 
       <div className="mt-4 flex items-center justify-between">

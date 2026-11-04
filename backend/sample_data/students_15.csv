@@ -1,0 +1,16 @@
+student_id,skill,experience_years,department,knows_python,communication
+S01,80,0,Engineering,no,4
+S02,54,1,Engineering,yes,10
+S03,67,0,Engineering,yes,4
+S04,54,4,Engineering,yes,9
+S05,66,1,Marketing,no,1
+S06,88,6,Design,no,6
+S07,57,1,Design,no,2
+S08,45,3,Engineering,no,6
+S09,78,2,Engineering,no,9
+S10,47,3,Engineering,no,10
+S11,96,6,Data,yes,2
+S12,42,5,Design,no,2
+S13,94,1,Engineering,no,5
+S14,69,5,Data,yes,6
+S15,62,1,Data,yes,10

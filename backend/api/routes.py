@@ -1,16 +1,12 @@
 """Flask HTTP API.  Every endpoint validates its input again on the server."""
 from __future__ import annotations
-import json
 import threading
-from flask import Blueprint, current_app, jsonify, request, Response
+from flask import Blueprint, current_app, jsonify, request
 from data.csv_loader import read_csv_bytes, CsvError
 from data.feature_schema import parse_features, SchemaError
 from data.validation import validate_dataset, inspect_columns
 from graph.builder import build_graph
-from graph.metrics import graph_metrics
 from optimization.constraints import resolve_constraints, check_feasibility, ConstraintError
-from evaluation.benchmark import run_comparison
-from evaluation.reports import teams_csv, unassigned_csv, summary_text
 from .errors import ApiError
 from .schemas import load_json_field, parse_settings
 from .tasks import Task
@@ -57,7 +53,7 @@ def _prepare():
         raise ApiError("graph_error", str(e), 422)
     except ConstraintError as e:
         raise ApiError("invalid_team_settings", "Team settings are invalid.", 422, e.issues)
-    return built, tc, settings, feats, report
+    return built, tc, settings
 
 
 @bp.get("/health")
@@ -80,51 +76,13 @@ def validate_csv():
     return ok(report=report)
 
 
-@bp.post("/validate-configuration")
-def validate_configuration():
-    body = request.get_json(silent=True)
-    if not isinstance(body, dict):
-        raise ApiError("invalid_json", "JSON body required.", 400)
-    n = body.get("n_candidates")
-    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
-        raise ApiError("invalid_setting", "n_candidates must be a positive integer.", 422)
-    if "features" in body:
-        try:
-            parse_features(body["features"])
-        except SchemaError as e:
-            raise ApiError("invalid_schema", "The feature schema is invalid.", 422, e.errors)
-    try:
-        tc = resolve_constraints(n, body.get("team") or {})
-    except ConstraintError as e:
-        return ok(valid=False, issues=e.issues)
-    issues = check_feasibility(n, tc)
-    return ok(valid=not issues, issues=issues, constraints=tc.to_dict())
-
-
-@bp.post("/build-graph")
-def build_graph_ep():
-    built, tc, settings, feats, report = _prepare()
-    out = {"metrics": graph_metrics(built.graph), "warnings": built.warnings, "constraints": tc.to_dict(),
-           "feasibility_issues": check_feasibility(built.graph.n, tc)}
-    pair = request.form.get("explain_pair")
-    if pair:
-        a, b = (x.strip() for x in pair.split(",", 1))
-        if a not in built.graph.ids or b not in built.graph.ids or a == b:
-            raise ApiError("invalid_pair", "Unknown candidate IDs for explain_pair.", 422)
-        out["pair"] = built.explain_pair(built.graph.ids.index(a), built.graph.ids.index(b))
-    return ok(**out, warnings_data=report["warnings"])
-
-
 @bp.post("/optimize")
 def optimize():
-    built, tc, settings, feats, report = _prepare()
+    built, tc, settings = _prepare()
     issues = check_feasibility(built.graph.n, tc)
     if issues:
         raise ApiError("infeasible_configuration", "The team settings cannot be satisfied.", 422, issues)
-    config = {"features": [f.to_dict() for f in feats], "objective": settings["objective"].to_dict(),
-              "team_settings": settings["team"], "resolved_constraints": tc.to_dict(), "limits": settings["limits"],
-              "id_column": request.form.get("id_column") or None, "n_candidates": built.graph.n}
-    task = Task(built, tc, settings["limits"], config)
+    task = Task(built, tc, settings["limits"])
     current_app.extensions["tasks"].add(task)
     threading.Thread(target=task.run, daemon=True).start()
     return jsonify({"ok": True, "task_id": task.id}), 202
@@ -149,15 +107,7 @@ def task_results(tid):
         raise ApiError("not_ready", "The optimisation is still running.", 409)
     if t.status == "failed":
         raise ApiError(t.error["code"], t.error["message"], 500)
-    return ok(result=t.result, config=t.config)
-
-
-@bp.get("/optimization/<tid>/statistics")
-def task_stats(tid):
-    t = _task(tid)
-    if t.result is None:
-        raise ApiError("not_ready", "No statistics yet.", 409)
-    return ok(stats=t.result["stats"], graph_metrics=t.result["graph_metrics"], status=t.result["status"])
+    return ok(result=t.result)
 
 
 @bp.post("/optimization/<tid>/cancel")
@@ -165,44 +115,3 @@ def task_cancel(tid):
     t = _task(tid)
     t.cancel.set()
     return ok(status="cancel_requested")
-
-
-@bp.get("/optimization/<tid>/export")
-def task_export(tid):
-    t = _task(tid)
-    if t.result is None:
-        raise ApiError("not_ready", "Nothing to export yet.", 409)
-    fmt = request.args.get("format", "json")
-    r = t.result
-    if fmt == "teams_csv":
-        return Response(teams_csv(r), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=teams.csv"})
-    if fmt == "unassigned_csv":
-        return Response(unassigned_csv(r), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=unassigned.csv"})
-    if fmt == "stats_json":
-        body = json.dumps({"stats": r["stats"], "graph_metrics": r["graph_metrics"], "status": r["status"],
-                           "optimality_proven": r["optimality_proven"], "termination_reason": r["termination_reason"]}, indent=2)
-        return Response(body, mimetype="application/json", headers={"Content-Disposition": "attachment; filename=statistics.json"})
-    if fmt == "summary_txt":
-        return Response(summary_text(r, t.config), mimetype="text/plain", headers={"Content-Disposition": "attachment; filename=summary.txt"})
-    if fmt == "json":
-        slim = {k: r[k] for k in ("status", "optimality_proven", "termination_reason", "objective", "constraints", "summary", "unassigned", "stats")}
-        slim["teams"] = [{"team": x["team"], "score": x["score"], "value_score": x["value_score"], "compat_score": x["compat_score"],
-                          "members": [m["id"] for m in x["members"]]} for x in r["teams"]]
-        return Response(json.dumps({"result": slim, "configuration": t.config}, indent=2), mimetype="application/json",
-                        headers={"Content-Disposition": "attachment; filename=team_assignment.json"})
-    raise ApiError("invalid_format", "format must be teams_csv, unassigned_csv, json, stats_json or summary_txt.", 400)
-
-
-@bp.post("/evaluate")
-def evaluate():
-    built, tc, settings, feats, report = _prepare()
-    issues = check_feasibility(built.graph.n, tc)
-    if issues:
-        raise ApiError("infeasible_configuration", "The team settings cannot be satisfied.", 422, issues)
-    try:
-        repeats = int(request.form.get("repeats", 3))
-    except ValueError:
-        raise ApiError("invalid_setting", "repeats must be an integer.", 422)
-    L = settings["limits"]
-    out = run_comparison(built.graph, tc, min(L["time_limit"], 60.0), L["node_limit"], L["max_cliques"], max(1, min(repeats, 5)))
-    return ok(evaluation=out)

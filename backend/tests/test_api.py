@@ -36,27 +36,25 @@ def test_health(client):
     assert client.get("/api/health").get_json()["ok"]
 
 
-def test_full_flow_upload_validate_optimize_results_export(client):
+def test_full_flow_upload_validate_optimize_results(client):
     r = client.post("/api/validate-csv", data=form(), content_type="multipart/form-data")
     assert r.get_json()["report"]["ok"]
-    r = client.post("/api/build-graph", data=form(), content_type="multipart/form-data")
-    assert r.get_json()["metrics"]["vertices"] == 12
     r = client.post("/api/optimize", data=form(), content_type="multipart/form-data")
     assert r.status_code == 202
     tid = r.get_json()["task_id"]
     assert wait(client, tid)["status"] == "finished"
     res = client.get(f"/api/optimization/{tid}/results").get_json()["result"]
     assert res["status"] == "optimal" and res["optimality_proven"]
-    ids = [m["id"] for t in res["teams"] for m in t["members"]]
-    assert len(ids) == len(set(ids)) and len(res["teams"]) == 3 and all(t["satisfies_hard_constraints"] for t in res["teams"])
-    assert res["summary"]["assigned"] + res["summary"]["unassigned"] == 12
-    assert client.get(f"/api/optimization/{tid}/statistics").get_json()["stats"]["nodes"] >= 0
-    csv_out = client.get(f"/api/optimization/{tid}/export?format=teams_csv").data.decode()
-    assert csv_out.startswith("team,candidate_id") and len(csv_out.strip().splitlines()) == len(ids) + 1
-    js = json.loads(client.get(f"/api/optimization/{tid}/export?format=json").data)
-    assert "configuration" in js and js["configuration"]["features"][0]["name"] == "skill"
-    assert b"PROVEN OPTIMUM" in client.get(f"/api/optimization/{tid}/export?format=summary_txt").data
-    assert client.get(f"/api/optimization/{tid}/export?format=bogus").status_code == 400
+    ids = [m for t in res["teams"] for m in t["members"]]
+    assert len(ids) == len(set(ids)) and len(res["teams"]) == 3
+    assert len(ids) + len(res["unassigned"]) == 12
+
+
+def test_analysis_endpoints_are_gone(client):
+    assert client.post("/api/build-graph", data=form(), content_type="multipart/form-data").status_code == 404
+    assert client.post("/api/evaluate", data=form(), content_type="multipart/form-data").status_code == 404
+    assert client.get("/api/optimization/x/statistics").status_code == 404
+    assert client.get("/api/optimization/x/export").status_code == 404
 
 
 def test_validation_errors_are_structured(client):
@@ -82,20 +80,3 @@ def test_bad_requests(client):
     s = {"objective": {"alpha": 0, "beta": 0}}
     assert client.post("/api/optimize", data=form(settings=s), content_type="multipart/form-data").status_code == 422
     assert client.get("/api/optimization/nope").status_code == 404
-    assert client.post("/api/validate-configuration", json={"n_candidates": 50, "team": {"policy": "strict_equal", "preferred_size": 4}}).get_json()["valid"]
-    assert client.post("/api/validate-configuration", json={"n_candidates": 3, "team": {"policy": "strict_equal", "preferred_size": 4}}).get_json()["valid"] is False
-
-
-def test_evaluate_endpoint_compares_modes(client):
-    s = json.loads(json.dumps(SETTINGS))
-    r = client.post("/api/evaluate", data={**form(settings=s), "repeats": "1"}, content_type="multipart/form-data")
-    rows = r.get_json()["evaluation"]["rows"]
-    assert [x["algorithm"] for x in rows] == ["BBMCW (full algorithm)", "BBMCW without MCOVER", "BBMCW without COVER and MCOVER", "BBMCW without AMTS"]
-    assert max(x["objective"] for x in rows) - min(x["objective"] for x in rows) < 1e-9
-
-
-def test_evaluate_includes_paper_style_comparison(client):
-    r = client.post("/api/evaluate", data={**form(), "repeats": "1"}, content_type="multipart/form-data")
-    vw = r.get_json()["evaluation"]["vertex_weighted"]["rows"]
-    assert len(vw) == 4
-    assert max(x["objective"] for x in vw) - min(x["objective"] for x in vw) < 1e-9

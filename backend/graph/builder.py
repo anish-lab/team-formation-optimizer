@@ -39,35 +39,6 @@ class BuiltGraph:
     objective: ObjectiveConfig
     warnings: list[str]
 
-    def _fidx(self):
-        return {f.name: f for f in self.table.features}
-
-    def explain_pair(self, i: int, j: int) -> dict:
-        t, g = self.table, self.graph
-        feats = [f for f in t.features if f.uses_compat]
-        tot = sum(f.importance for f in feats) or 1.0
-        rows = []
-        for f in feats:
-            s = pair_score(f, t.values[f.name][i], t.values[f.name][j], t.stats[f.name])
-            rows.append({"feature": f.name, "a": t.values[f.name][i], "b": t.values[f.name][j], "method": f.compat_method,
-                         "score": s, "weight": f.importance / tot, "contribution": s * f.importance / tot})
-        return {"a": g.ids[i], "b": g.ids[j], "compatibility": g.raw_compat[i][j], "edge": g.is_edge(i, j),
-                "rule": f"{self.objective.edge_mode} (threshold {self.objective.threshold})", "features": rows}
-
-    def team_breakdown(self, members: list[int]) -> list[dict]:
-        t = self.table
-        out = []
-        for f in t.features:
-            row = {"feature": f.name, "role": f.role, "importance": f.importance}
-            if f.uses_value:
-                row["mean_value_score"] = sum(value_score(f, t.values[f.name][i], t.stats[f.name]) for i in members) / len(members)
-            if f.uses_compat and len(members) > 1:
-                ps = [pair_score(f, t.values[f.name][a], t.values[f.name][b], t.stats[f.name])
-                      for k, a in enumerate(members) for b in members[k + 1:]]
-                row["mean_pair_score"] = sum(ps) / len(ps)
-            out.append(row)
-        return out
-
 
 def build_graph(table: ParsedTable, obj: ObjectiveConfig) -> BuiltGraph:
     feats = table.features

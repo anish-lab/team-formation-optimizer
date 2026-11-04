@@ -5,15 +5,23 @@ import time
 import uuid
 import logging
 from optimization.team_conflict_solver import solve_teams_bbmcw
-from evaluation.reports import build_result
+from optimization.split_solver import can_split, solve_by_splitting
 
 log = logging.getLogger("tasks")
 
 
+def build_result(built, res) -> dict:
+    """Only what the website shows: who is in which team, who is left out, and whether the answer is proven."""
+    ids = built.graph.ids
+    return {"status": res.status, "optimality_proven": res.optimality_proven,
+            "teams": [{"team": k + 1, "members": [ids[i] for i in t.members]} for k, t in enumerate(res.teams)],
+            "unassigned": [ids[i] for i in res.unassigned]}
+
+
 class Task:
-    def __init__(self, built, tc, limits, config):
+    def __init__(self, built, tc, limits):
         self.id = uuid.uuid4().hex[:12]
-        self.built, self.tc, self.limits, self.config = built, tc, limits, config
+        self.built, self.tc, self.limits = built, tc, limits
         self.status = "queued"
         self.created = time.time()
         self.started = None
@@ -32,9 +40,13 @@ class Task:
         self.status, self.started = "running", time.time()
         try:
             L = self.limits
-            res = solve_teams_bbmcw(self.built.graph, self.tc, L["time_limit"], L["node_limit"], L["max_cliques"],
-                                    self.cancel.is_set, self.progress)
-            self.result = build_result(self.built, self.tc, res)
+            g = self.built.graph
+            if can_split(g, self.tc):
+                res = solve_by_splitting(g, self.tc, L["time_limit"], self.cancel.is_set, self.progress)
+            else:
+                res = solve_teams_bbmcw(g, self.tc, L["time_limit"], L["node_limit"], L["max_cliques"],
+                                        self.cancel.is_set, self.progress)
+            self.result = build_result(self.built, res)
             self.status = "cancelled" if res.termination_reason == "cancelled" else "finished"
         except Exception:  # never leak stack traces to clients
             log.exception("optimisation task %s failed", self.id)

@@ -15,10 +15,4 @@ export interface Settings {
   limits: { time_limit: number; node_limit?: number | null; max_cliques: number }
 }
 export interface ApiErr { code?: string; message?: string; details?: any }
-export type Page = 'home' | 'wizard' | 'results' | 'graph' | 'evaluation' | 'export'
-export const defaultSettings: Settings = {
-  objective: { alpha: 1, beta: 1, edge_mode: 'hard', threshold: 0.5 },
-  team: { policy: 'variable_sizes', preferred_size: 4, num_teams: null, min_size: 4, max_size: 5, strict_team_count: true,
-    strict_team_size: false, full_coverage: false, equal_sizes: false, priority: 'coverage_first' },
-  limits: { time_limit: 30, node_limit: null, max_cliques: 250000 },
-}
+export type Page = 'wizard' | 'results'

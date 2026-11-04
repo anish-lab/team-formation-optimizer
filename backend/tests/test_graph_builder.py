@@ -3,7 +3,6 @@ from data.csv_loader import read_csv_bytes
 from data.feature_schema import parse_features
 from data.validation import validate_dataset
 from graph.builder import build_graph, ObjectiveConfig
-from graph.metrics import graph_metrics
 
 CSV = "id,skill,dept,py\na,10,x,1\nb,0,x,0\nc,10,y,1\nd,5,y,0\n"
 
@@ -34,15 +33,12 @@ def test_hard_threshold_removes_edges_and_is_deterministic():
     g1, g2 = build_graph(table(SPECS), o).graph, build_graph(table(SPECS), o).graph
     assert g1.adj == g2.adj and g1.ew == g2.ew
     assert not g1.is_edge(0, 1) and g1.ew[0][1] == 0.0
-    assert graph_metrics(g1)["edges"] == sum(a.bit_count() for a in g1.adj) // 2
 
 
-def test_complementarity_and_explanation():
+def test_complementarity():
     specs = [{"name": "skill", "type": "numeric_continuous", "role": "compat", "compat_method": "complementarity"}]
     b = build_graph(table(specs), ObjectiveConfig(edge_mode="soft"))
     assert b.graph.raw_compat[0][1] == pytest.approx(1.0) and b.graph.raw_compat[0][2] == pytest.approx(0.0)
-    e = b.explain_pair(0, 1)
-    assert e["features"][0]["feature"] == "skill" and e["compatibility"] == pytest.approx(1.0)
 
 
 def test_matrix_must_be_complete_and_ids_not_features_by_default():
